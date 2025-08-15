@@ -9,6 +9,8 @@ void main() {
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context){
     return MaterialApp(
@@ -20,6 +22,8 @@ class MyApp extends StatelessWidget {
 }
 
 class TwentyFortyEight extends StatefulWidget {
+  const TwentyFortyEight({super.key});
+
   @override
   TwentyFortyEightState createState() => TwentyFortyEightState();
 }
@@ -29,6 +33,7 @@ class TwentyFortyEightState extends State<TwentyFortyEight> with SingleTickerPro
   late AnimationController controller;
   List<List<Tiles>> grid = 
     List.generate(4, (y) => List.generate(4, (x) => Tiles(x, y, 0)));
+    List <Tiles> toAdd =[];
   Iterable<Tiles> get flattenedGrid => grid.expand((e) => e);
   Iterable<List<Tiles>> get cols => 
   List.generate(4, (x) => List.generate(4, (y) => grid[y][x]));
@@ -37,14 +42,62 @@ class TwentyFortyEightState extends State<TwentyFortyEight> with SingleTickerPro
   @override
   void initState(){
     super.initState();
-    controller = AnimationController(vsync: this, duration: Duration(milliseconds: 200));
+    controller = 
+      AnimationController(vsync: this, duration: Duration(milliseconds: 200));
+      controller.addStatusListener((status) {
+        if (status == AnimationStatus.completed){
+          toAdd.forEach((e) {grid[e.y][e.x].value = e.value;}); 
+       flattenedGrid.forEach((e)
+        {e.resetAnimations();});
+        toAdd.clear();
+      }});
 
     grid[1][2].value = 4;
+
+    grid[0][2].value = 4;
+    grid [0][0].value=16;
     grid[3][2].value = 16;
 
-    flattenedGrid.forEach((element) => element.resetAnimations());
+    for (var element in flattenedGrid) {
+      element.resetAnimations();
+    }
   }
-    
+
+
+
+void addNewTile() {
+  // Find all empty tiles
+  List<Tiles> empty = flattenedGrid.where((e) => e.value == 0).toList();
+
+  // If no empty tiles, exit early
+  if (empty.isEmpty) {
+    print("No empty tiles available.");
+    return;
+  }
+
+  // Shuffle to randomize placement
+  empty.shuffle();
+
+  // Randomly choose between 2 and 4
+  int value = Random().nextBool() ? 2 : 4;
+
+  // Get the first empty tile safely
+  Tiles? target = empty.first;
+
+  if (target == null) {
+    print("Unexpected null tile.");
+    return;
+  }
+
+  // Create and animate the new tile
+  Tiles newTile = Tiles(target.x, target.y, value);
+  // Add to the list of tiles to be rendered
+  toAdd.add(newTile);
+
+  // Optional: Debug log
+  print("Added tile with value $value at (${target.x}, ${target.y})");
+}
+
   
   @override
   Widget build(BuildContext context){
@@ -111,15 +164,15 @@ class TwentyFortyEightState extends State<TwentyFortyEight> with SingleTickerPro
             if (velocityY < -250 && canSwipeUp()){
               doSwipe(swipeUp);
             } else if(velocityY >  250 && canSwipeDown()){
-              //swipe down
+              doSwipe(swipeDown);
             }
           },
           onHorizontalDragEnd: (details){
             double velocityX = details.velocity.pixelsPerSecond.dx;
-            if (velocityX < -1000 && canSwipeLeft()){
-              //swipe l3r5
-            } else if(velocityX > 1000 && canSwipeRight()){
-              //swipe right
+            if (velocityX < -250 && canSwipeLeft()){
+              doSwipe(swipeLeft);
+            } else if(velocityX > 250 && canSwipeRight()){
+              doSwipe(swipeRight);
             }
           },
           child: Stack(
@@ -134,7 +187,7 @@ class TwentyFortyEightState extends State<TwentyFortyEight> with SingleTickerPro
   void doSwipe(void Function() swipeFn){
     setState((){
       swipeFn();
-      // new tile addded
+      addNewTile();
       controller.forward (from: 0);
     });
   }
@@ -177,9 +230,32 @@ class TwentyFortyEightState extends State<TwentyFortyEight> with SingleTickerPro
       tiles.skip(i).skipWhile((value) => value.value == 0);
       if (toCheck.isNotEmpty){
         Tiles t = toCheck.first;
-        Tiles merge = toCheck.skip(1).firstWhere((t) => t.value != 0, orElse: () => Tiles (-1, -1, -1));
-          if (merge != (-1, -1, -1));
+        Tiles? merge = toCheck.skip(1).firstWhere((t) => t.value != 0, orElse: () => Tiles (-1, -1, -1));
+          if (merge.x == -1 && merge.y == -1 && merge.value == -1) {
+            merge = null;
+            }
+          if (tiles[i] != t || merge != null){
+            int resultValue =  t.value;
+            t.moveTo(controller, tiles[i].x, tiles[i].y);
+            if  ((tiles[i] != t || merge != null) && merge != null && t.value == merge.value) {
+              resultValue += merge.value;
+              merge.moveTo(controller, tiles[i].x, tiles[i].y); 
+              merge.value=0;
+            }
+            t.value=0;
+            //tiles[i] = Tiles(tiles[i].x, tiles[i].y, resultValue);
+
+            // if (merge != null) {
+            //   merge.x = tiles[i].x;
+            //   merge.y = tiles[i].y;
+            // }
+
+            tiles[i].value = resultValue;
+            tiles[i].animatedValue = AlwaysStoppedAnimation(resultValue.toDouble());
+
+          }
       }
+      
     }
   } 
 }
